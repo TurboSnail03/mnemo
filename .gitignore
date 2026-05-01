@@ -1,0 +1,27 @@
+# Logs
+logs
+*.log
+
+node_modules/
+dist/
+dist-ssr/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Mnemo database — personal data, never commit
+mnemo_vault.db
+mnemo.db
+*My Clippings.txt
+
+# OS
+.DS_Store
+Thumbs.db

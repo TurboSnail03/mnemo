@@ -1,0 +1,11 @@
+{
+  "name": "mnemo",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:extension": "npm run dev -w apps/extension",
+    "dev:pwa": "npm run dev -w apps/mobile-pwa"
+  }
+}
