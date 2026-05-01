@@ -4,8 +4,8 @@ import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'
 import './App.css'
 
 
-const API = 'http://127.0.0.1:8000'
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'missing-client-id'
 
 // ─── Sync Drive Button (needs to be inside GoogleOAuthProvider) ───────────────
 function SyncDriveButton({ onSyncStart, onSyncDone }) {
@@ -85,8 +85,8 @@ function App() {
   const fetchHighlights = () => {
     fetch(`${API}/highlights/`)
       .then(res => res.json())
-      .then(data => { setHighlights(data); setLoading(false) })
-      .catch(err => { console.error('[Mnemo] Failed to load library', err); setLoading(false) })
+      .then(data => { setHighlights(Array.isArray(data) ? data : []); setLoading(false) })
+      .catch(err => { console.error('[Mnemo] Failed to load library', err); setHighlights([]); setLoading(false) })
   }
 
   useEffect(() => { fetchHighlights() }, [])
