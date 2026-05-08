@@ -2,7 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- FIX: was href="/vite.svg" which does not exist in public/. Changed to favicon.svg. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- PWA Meta Tags -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#05070a" />
@@ -12,7 +13,7 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    
+
     <!-- Register the Service Worker -->
     <script>
       if ('serviceWorker' in navigator) {

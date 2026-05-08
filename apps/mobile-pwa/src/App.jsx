@@ -7,6 +7,19 @@ import './App.css'
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || 'missing-client-id'
 
+// FIX: Escape HTML entities in user-supplied content before injecting into
+// dangerouslySetInnerHTML. Without this, any quote containing <script>,
+// <img onerror=…>, or bare < / > / & characters would break rendering or
+// (if the DB is ever shared / imported) open an XSS vector.
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // ─── Sync Drive Button (needs to be inside GoogleOAuthProvider) ───────────────
 function SyncDriveButton({ onSyncStart, onSyncDone }) {
   const login = useGoogleLogin({
@@ -91,25 +104,32 @@ function App() {
 
   useEffect(() => { fetchHighlights() }, [])
 
-  // ── 2. Mathematical Moon Phase ───────────────────────────────────────────
+  // ── 2. Real-Time Moon Phase ──────────────────────────────────────────────
+  // Reference new moon: Jan 6 2000 18:14 UTC (Unix = 947182440 s)
+  // Synodic period: 29.530589 days = 2551442.8 s
+  // Phase 0 = new moon, 0.5 = full moon, increases linearly.
   useEffect(() => {
-    const calculateMoonPhase = () => {
-      const now        = new Date()
-      const lp         = 2551442.8
-      const nowSecs    = now.getTime() / 1000
-      const newMoonSecs = 947182440
-      const phase      = ((nowSecs - newMoonSecs) % lp) / lp
+    const computePhase = () => {
+      const LP          = 2551442.8          // synodic period in seconds
+      const REF_NEW     = 947182440          // Jan 6 2000 18:14 UTC (verified new moon)
+      const nowSecs     = Date.now() / 1000
+      // Always positive modulo
+      const phase       = ((nowSecs - REF_NEW) % LP + LP) % LP / LP
 
-      if (phase < 0.03 || phase > 0.97) return 'phase-new-moon'
-      if (phase < 0.22) return 'phase-waxing-crescent'
-      if (phase < 0.28) return 'phase-first-quarter'
-      if (phase < 0.47) return 'phase-waxing-gibbous'
-      if (phase < 0.53) return 'phase-full-moon'
-      if (phase < 0.72) return 'phase-waning-gibbous'
-      if (phase < 0.78) return 'phase-last-quarter'
+      if (phase < 0.0337 || phase > 0.9663) return 'phase-new-moon'
+      if (phase < 0.2163) return 'phase-waxing-crescent'
+      if (phase < 0.2837) return 'phase-first-quarter'
+      if (phase < 0.4663) return 'phase-waxing-gibbous'
+      if (phase < 0.5337) return 'phase-full-moon'
+      if (phase < 0.7163) return 'phase-waning-gibbous'
+      if (phase < 0.7837) return 'phase-last-quarter'
       return 'phase-waning-crescent'
     }
-    setMoonPhase(calculateMoonPhase())
+
+    setMoonPhase(computePhase())
+    // Update every 60 s — the phase shifts ~0.002% per minute, visible over hours
+    const id = setInterval(() => setMoonPhase(computePhase()), 60_000)
+    return () => clearInterval(id)
   }, [])
 
   // ── 3. Keyboard Shortcuts ────────────────────────────────────────────────
@@ -159,7 +179,10 @@ function App() {
   const breatheLife = (ash) => {
     clearTimeout(ash.fuseId)
     setSmoldering(prev => prev.filter(s => s.id !== ash.id))
-    setHighlights(prev => [ash, ...prev])
+    // Strip internal fuseId timer ref before restoring to highlights state
+    // eslint-disable-next-line no-unused-vars
+    const { fuseId, ...highlight } = ash
+    setHighlights(prev => [highlight, ...prev])
   }
 
   // ── 5. Active Vault Actions ───────────────────────────────────────────────
@@ -257,7 +280,6 @@ function App() {
   }
 
   // ── Filtering & Data Prep ────────────────────────────────────────────────
-  // NOTE: Stacks are grouped exclusively by normalized book_title, per spec.
   const baseHighlights = selectedSource
     ? highlights.filter(h => h.book_title === selectedSource)
     : highlights
@@ -279,7 +301,6 @@ function App() {
     return acc
   }, {})
 
-  // In library view, show one card per book_title (as a Stack if >1 fragment)
   const displayedItems = selectedSource
     ? filteredHighlights
     : Object.entries(groupedHighlights).map(([title, items]) => ({
@@ -304,7 +325,6 @@ function App() {
       <div className="night-sky" aria-hidden="true" />
       <div className={`moon ${moonPhase}`} aria-hidden="true" />
 
-      {/* ── ASH TRAY (Undo) ────────────────────────────────────────────── */}
       {/* ── KINDLE UPLOAD STATUS TOAST ──────────────────────────────── */}
       <AnimatePresence>
         {uploadStatus && (
@@ -325,6 +345,7 @@ function App() {
         )}
       </AnimatePresence>
 
+      {/* ── ASH TRAY (Undo) ────────────────────────────────────────────── */}
       <div className="ash-tray" role="status" aria-live="polite">
         <AnimatePresence>
           {smoldering.map((ash) => (
@@ -404,10 +425,11 @@ function App() {
                   <textarea
                     id="summon-content-input"
                     className="edit-textarea"
-                    placeholder="Write the thought here…"
+                    placeholder="Write the thought here… (Ctrl+Enter to save)"
                     rows="6"
                     value={newThoughtContent}
                     onChange={(e) => setNewThoughtContent(e.target.value)}
+                    onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleSummon() }}
                     autoFocus
                   />
                   <div className="summon-actions">
@@ -589,9 +611,27 @@ function App() {
           </div>
         </header>
 
-        {/* ── EMPTY STATE ─────────────────────────────────────────────── */}
+        {/* ── EMPTY STATES ────────────────────────────────────────────── */}
         {displayedItems.length === 0 && searchQuery && (
           <div className="empty-state" role="status">No thoughts found matching "{searchQuery}".</div>
+        )}
+
+        {/* FIX: Show a helpful empty state when the vault is genuinely empty
+            (no search active). Previously this was a blank screen. */}
+        {displayedItems.length === 0 && !searchQuery && !loading && (
+          <motion.div
+            className="empty-state vault-empty"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            role="status"
+          >
+            <p className="empty-state-headline">The vault is empty.</p>
+            <p className="empty-state-hint">
+              Upload a <strong>My Clippings.txt</strong> from your Kindle,<br />
+              sync your Google Play Books, or press <strong>+ Add</strong> to forge a thought manually.
+            </p>
+          </motion.div>
         )}
 
         {/* ── NATIVE CSS MASONRY GRID ─────────────────────────────────── */}
@@ -653,15 +693,17 @@ function App() {
                     </div>
                   </div>
                 ) : (
+                  // FIX: Escape HTML entities in item.content before injection.
+                  // The search-highlight regex then re-inserts safe <mark> tags.
                   <blockquote
                     className="quote-content"
                     dangerouslySetInnerHTML={{
                       __html: searchQuery
-                        ? `"${item.content.replace(
-                            new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
+                        ? `"${escapeHtml(item.content).replace(
+                            new RegExp(escapeHtml(searchQuery).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
                             match => `<mark class="ink-highlight">${match}</mark>`
                           )}"`
-                        : `"${item.content}"`,
+                        : `"${escapeHtml(item.content)}"`,
                     }}
                   />
                 )}

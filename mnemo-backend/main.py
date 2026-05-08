@@ -2,6 +2,7 @@ import sqlite3
 import hashlib
 import os
 import re
+from contextlib import asynccontextmanager
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -233,13 +234,27 @@ def parse_playbooks_doc_text(raw_text: str, raw_title: str, author: str) -> list
     return results
 
 
-# --- 4. THE API SERVER & MODELS ---
-app = FastAPI(title="Mnemo API — Active Vault")
+# --- 4. LIFESPAN & APP INIT ---
+# FIX: @app.on_event("startup") is deprecated since FastAPI 0.93.
+# Use the lifespan context manager instead.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    ingest_clippings()
+    ingest_playbooks()
+    yield  # App is running
+    # (teardown goes here if needed)
 
+app = FastAPI(title="Mnemo API — Active Vault", lifespan=lifespan)
+
+# FIX: allow_credentials=True is incompatible with allow_origins=["*"].
+# Browsers (and Starlette ≥ 0.28) reject this combination.
+# For local dev, drop allow_credentials. If you need cookies/auth headers,
+# list explicit origins instead of "*".
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,   # was True — invalid with wildcard origins
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -270,13 +285,6 @@ class SourceRename(BaseModel):
 
 class DriveSyncRequest(BaseModel):
     access_token: str
-
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
-    ingest_clippings()
-    ingest_playbooks()
 
 
 # --- 5. THE ACTIVE VAULT ENDPOINTS ---
@@ -369,8 +377,6 @@ async def upload_clippings(file: UploadFile = File(...)):
     """
     Accepts a 'My Clippings.txt' file upload from the browser.
     Parses it and inserts highlights into the vault — fully deduplicated.
-    This is how users on any device (phone, tablet, deployed app) can
-    sync their Kindle highlights without filesystem access.
     """
     if not file.filename or not file.filename.endswith(".txt"):
         raise HTTPException(status_code=400, detail="Please upload a .txt file")
