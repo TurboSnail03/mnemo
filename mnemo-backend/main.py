@@ -247,15 +247,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mnemo API — Active Vault", lifespan=lifespan)
 
-# FIX: allow_credentials=True is incompatible with allow_origins=["*"].
-# Browsers (and Starlette ≥ 0.28) reject this combination.
-# For local dev, drop allow_credentials. If you need cookies/auth headers,
-# list explicit origins instead of "*".
+# 1. Define the list of "Trusted" origins
+# Replace the Vercel URL with your actual deployed frontend link
+origins = [
+    "http://localhost:5173",            # Local development
+    "https://mnemo-pwa.vercel.app/",   # Your live Vercel frontend
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,   # was True — invalid with wildcard origins
-    allow_methods=["*"],
+    allow_origins=origins,              # Use the specific list, not "*"
+    allow_credentials=True,             # Now this can be True safely
+    allow_methods=["*"],                # Methods and headers are fine as wildcards
     allow_headers=["*"],
 )
 
