@@ -247,22 +247,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mnemo API — Active Vault", lifespan=lifespan)
 
-# 1. Define the list of "Trusted" origins
-# Replace the Vercel URL with your actual deployed frontend link
 origins = [
-    "http://localhost:5173",            # Local development
-    "https://mnemo-pwa.vercel.app/",   # Your live Vercel frontend
+    "http://localhost:5173", 
+    "https://mnemo-pwa.vercel.app"  
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,              # Use the specific list, not "*"
-    allow_credentials=True,             # Now this can be True safely
-    allow_methods=["*"],                # Methods and headers are fine as wildcards
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
 class Highlight(BaseModel):
     id:         str
     book_title: str
