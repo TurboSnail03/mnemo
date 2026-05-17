@@ -134,40 +134,13 @@ async def get_token(authorization: str = Header(...)) -> str:
     return authorization[7:].strip()
 
 
-# ─── Text-processing utilities ────────────────────────────────────────────────
-
-# Matches hex strings that look like mangled Drive doc IDs used as titles
-_HEX_HASH_RE = re.compile(r'^[0-9A-Fa-f]{24,}$')
-
-# Strips Play Books doc-name prefixes like:
-#   "Notes from \"The Lost Hero\""  →  "The Lost Hero"
-#   "Notes from The Lost Hero"       →  "The Lost Hero"
-_NOTES_FROM_RE = re.compile(
-    r'^Notes\s+from\s+["“]?(.+?)["”]?\s*$',
-    re.IGNORECASE,
-)
+# ─── Text-processing utilities (unchanged from original) ──────────────────────
 
 def normalize_title(raw: str) -> str:
     if not raw:
         return "Stray Thoughts"
-    stripped = raw.strip()
-
-    # Guard: bare hex hash (Drive ID leaked as title)
-    if _HEX_HASH_RE.match(stripped.replace(" ", "")):
-        return "Unknown Volume"
-
-    # Strip "Notes from \"Title\"" wrapper that Play Books uses for doc names
-    notes_m = _NOTES_FROM_RE.match(stripped)
-    if notes_m:
-        # Strip the captured group and remove any residual quote characters
-        stripped = notes_m.group(1).strip().strip('"“”')
-
-    # Uppercase for canonical, case-insensitive matching
-    # (ensures "1984" from Kindle and "1984" from Play Books merge correctly)
-    clean = stripped.upper()
-    # Drop " - Author" or " BY Author" suffixes
+    clean = raw.upper().strip()
     clean = re.split(r'\s+-\s+|\s+BY\s+', clean)[0]
-    # Drop parenthetical suffixes like "(Frank Herbert)"
     clean = re.sub(r'\([^)]*\)', '', clean)
     return clean.strip() or "Stray Thoughts"
 
@@ -223,89 +196,40 @@ def parse_kindle_text(raw_text: str) -> List[dict]:
 
 
 def parse_playbooks_text(raw_text: str, raw_title: str, author: str) -> List[dict]:
-    """
-    Parse a plain-text export of a Google Play Books highlight doc.
-
-    Play Books format (after export to Google Drive):
-    ──────────────────────────────────────────────────
-    Cover Image <Title> <Author> <Publisher>
-    This document is overwritten when you make changes in Play Books...
-    All your annotations N notes/highlights
-    Created by <Name> – Last synced <Month DD, YYYY>
-    <Chapter heading / free text until first highlight>
-    <Highlight text...>
-    <Month DD, YYYY> <page number>          ← separator stamp AFTER each highlight
-    <Next highlight text...>
-    <Month DD, YYYY> <page number>
-    ...
-
-    The date+page stamp comes AFTER each highlight (not before), so we split on
-    the stamps and take the text that precedes each stamp.
-    Very short chunks (< 30 chars) are one-word "notes" — discarded.
-    """
-    clean = normalize_title(raw_title)
-
-    # ── 1. Strip the document preamble ──────────────────────────────────────
-    # Everything up to and including "Created by <Name> – Last synced <Date>"
-    # is boilerplate we must not treat as a highlight.
-    # Cover all dash variants Play Books uses: en-dash, em-dash, plain hyphen.
-    SYNCED_RE = re.compile(
-        r'Created by .+?[\u2013\u2014\-]\s*Last synced\s+\w+\s+\d+,?\s*\d{4}',
-        re.DOTALL | re.IGNORECASE,
-    )
-    m = SYNCED_RE.search(raw_text)
-    if m:
-        body = raw_text[m.end():].strip()
-    else:
-        # Fallback: if preamble pattern fails, use full text (first date stamp
-        # will still serve as the pre-highlight boundary via parts[0] skip).
-        body = raw_text
-
-    # ── 2. Split by "Month DD, YYYY page#" stamps ───────────────────────────
-    # These stamps appear immediately after each highlight.
-    MONTHS = (
-        r'(?:January|February|March|April|May|June|July'
-        r'|August|September|October|November|December)'
-    )
-    DATE_STAMP_RE = re.compile(
-        rf'({MONTHS}\s+\d{{1,2}},\s+\d{{4}}\s+\d+)',
-        re.IGNORECASE,
-    )
-    parts = DATE_STAMP_RE.split(body)
-    # parts = [preamble_text, stamp1, text1, stamp2, text2, ...]
-    # parts[0] is chapter headings before the first highlight — skip it.
-
-    CHAPTER_RE = re.compile(
-        r'^(?:Part|Chapter|Section|Prologue|Epilogue|Introduction|Appendix)\b',
-        re.IGNORECASE,
-    )
-    MIN_CHARS = 30   # one-word notes like "say" or "anthropomorphizing" are discarded
-
-    items = []
-    i = 1   # start at first stamp
-    while i < len(parts) - 1:
-        stamp = parts[i].strip()
-        chunk = parts[i + 1].strip() if i + 1 < len(parts) else ""
-        i += 2
-
-        # Normalise whitespace
-        text = re.sub(r'\s+', ' ', chunk).strip()
-
-        # Skip empty, too-short one-word notes, or bare chapter headings
-        if not text or len(text) < MIN_CHARS:
+    """Parse a plain-text export of a Google Play Books highlight doc."""
+    clean         = normalize_title(raw_title)
+    items         = []
+    current_quote = []
+    meta          = "Play Books Drive Sync"
+    for line in raw_text.splitlines():
+        line = line.strip()
+        if not line:
             continue
-        if CHAPTER_RE.match(text) and len(text) < 80:
-            continue
-
+        if line.startswith("Highlight") or line.startswith("Note"):
+            if current_quote:
+                content = " ".join(current_quote)
+                items.append({
+                    "id":         fingerprint(clean, content),
+                    "book_title": clean,
+                    "author":     author,
+                    "content":    content,
+                    "added_on":   meta,
+                    "source":     "playbooks",
+                })
+                current_quote = []
+            meta = line
+        else:
+            current_quote.append(line)
+    if current_quote:
+        content = " ".join(current_quote)
         items.append({
-            "id":         fingerprint(clean, text),
+            "id":         fingerprint(clean, content),
             "book_title": clean,
             "author":     author,
-            "content":    text,
-            "added_on":   stamp,
+            "content":    content,
+            "added_on":   meta,
             "source":     "playbooks",
         })
-
     return items
 
 
@@ -422,32 +346,6 @@ def rename_source(data: SourceRename, token: str = Depends(get_token)):
     return {"status": f"renamed {count} fragments", "new_title": clean_new}
 
 
-@app.delete("/highlights/")
-def clear_vault(token: str = Depends(get_token)):
-    """Delete every highlight in the vault. Requires the client to confirm server-side."""
-    vault = read_vault(token)
-    removed = len(vault["highlights"])
-    vault["highlights"] = []
-    write_vault(token, vault)
-    return {"status": "vault cleared", "removed": removed}
-
-
-@app.delete("/sources/{title:path}")
-def burn_source(title: str, token: str = Depends(get_token)):
-    """
-    Delete every highlight belonging to a given book/source title in one shot.
-    The :path converter allows titles that contain slashes (rare, but possible).
-    """
-    vault    = read_vault(token)
-    original = len(vault["highlights"])
-    vault["highlights"] = [h for h in vault["highlights"] if h["book_title"] != title]
-    removed  = original - len(vault["highlights"])
-    if removed == 0:
-        raise HTTPException(status_code=404, detail=f"No highlights found for '{title}'")
-    write_vault(token, vault)
-    return {"status": "burned", "removed": removed}
-
-
 @app.post("/upload/clippings")
 async def upload_clippings(
     file:  UploadFile = File(...),
@@ -505,15 +403,6 @@ def sync_playbooks_from_drive(token: str = Depends(get_token)):
     docs = docs_res.get("files", [])
 
     # 3. Parse and collect new items
-    # Regex to pull title+author from the Play Books preamble line:
-    # "Cover Image <Title> <Author> <Publisher> This document..."
-    COVER_RE = re.compile(
-        r'Cover Image\s+(.+?)\s*\u2013\s*Last synced',
-        re.IGNORECASE | re.DOTALL,
-    )
-    # Simpler: rely on doc name "Title - Author" but guard hash filenames
-    HEX_DOC_RE = re.compile(r'^[0-9A-Fa-f]{16,}$')
-
     new_items = []
     for doc in docs:
         try:
@@ -521,49 +410,9 @@ def sync_playbooks_from_drive(token: str = Depends(get_token)):
                 fileId=doc["id"], mimeType="text/plain"
             ).execute()
             raw_text = export.decode("utf-8", errors="replace") if isinstance(export, bytes) else str(export)
-
-            # ── Extract title + author from doc name ──────────────────
-            # Play Books names its exported docs in three known patterns:
-            #   "Notes from \"The Lost Hero\""          → title only
-            #   "Notes from \"The Lost Hero\" - Rick Riordan" → title + author
-            #   "The Lost Hero - Rick Riordan"           → title + author (older format)
-            doc_name  = doc["name"].strip()
-
-            # Split on " - " FIRST to isolate title from author, then strip
-            # the "Notes from \"...\"" wrapper from the title part.
-            # Order matters: if we strip "Notes from" first on the full string,
-            # the author suffix gets captured into the title group.
-            parts     = doc_name.split(" - ", 1)
-            title_raw = parts[0].strip()
+            parts     = doc["name"].split(" - ", 1)
+            raw_title = parts[0].strip()
             author    = parts[1].strip() if len(parts) > 1 else "Unknown"
-
-            # Strip "Notes from \"...\"" wrapper from the title part
-            notes_m = _NOTES_FROM_RE.match(title_raw)
-            if notes_m:
-                title_raw = notes_m.group(1).strip().strip('"“”')
-
-            raw_title = title_raw
-
-            # Guard: if the doc name is a raw hex hash, try to parse title
-            # from the document body's "Cover Image <Title> <Author> ..."
-            if HEX_DOC_RE.match(raw_title.replace(" ", "")):
-                # Play Books embeds "Cover Image <Title> <Author> <Publisher>"
-                # at the very start of the exported text
-                cover_match = re.match(
-                    r'Cover Image\s+(.+?)\s+(?:HarperCollins|Penguin|Signal|Random House'
-                    r'|Bloomsbury|Macmillan|Scholastic|Simon|Hachette|Tor|Orbit'
-                    r'|[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\s+(?:LLC|Inc|Ltd|Press|Books|House|Publishers?))',
-                    raw_text, re.IGNORECASE
-                )
-                if cover_match:
-                    raw_title = cover_match.group(1).strip()
-                    # Try to get author from "Created by" preamble parse
-                    created_m = re.search(r'Created by\s+([\w\s]+?)\s*\u2013', raw_text)
-                    if created_m:
-                        author = created_m.group(1).strip()
-                else:
-                    raw_title = "Unknown Volume"
-
             new_items.extend(parse_playbooks_text(raw_text, raw_title, author))
         except Exception:
             continue   # skip docs that fail to export

@@ -728,3 +728,346 @@ body {
   .summon-top-btn span,
   .kindle-upload-btn span { display: none; } /* hide label text, keep icon */
 }
+
+/* ─── USER MENU ──────────────────────────────────────────────────────────── */
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.user-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  object-fit: cover;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+  touch-action: manipulation;
+}
+.user-avatar-fallback {
+  background: rgba(255, 107, 53, 0.15);
+  border-color: rgba(255, 107, 53, 0.35);
+  color: var(--accent);
+  font-family: 'Playfair Display', serif;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+.user-menu:hover .user-avatar { border-color: rgba(255, 107, 53, 0.5); }
+
+/* Dropdown — hidden by default, shown on hover/focus-within */
+.user-avatar-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  touch-action: manipulation;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  min-width: 200px;
+  background: rgba(16, 14, 11, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  z-index: 500;
+  /* Controlled by React state — no hover tricks */
+  animation: dropdownIn 0.18s ease forwards;
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.user-name {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-email {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.5rem;
+}
+
+.sign-out-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  min-height: 34px;
+  touch-action: manipulation;
+}
+.sign-out-btn:hover { border-color: var(--danger); color: var(--danger); }
+
+/* Touch handled via React state click toggle — no extra CSS needed */
+
+/* ─── TOKEN EXPIRY BANNER ────────────────────────────────────────────────── */
+.token-expiry-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(224, 92, 92, 0.12);
+  border-bottom: 1px solid rgba(224, 92, 92, 0.3);
+  color: #e6e1d8;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  font-size: 0.88rem;
+  z-index: 10001;
+  backdrop-filter: blur(8px);
+}
+
+.relogin-btn {
+  background: none;
+  border: 1px solid rgba(224, 92, 92, 0.6);
+  border-radius: 4px;
+  color: #e05c5c;
+  padding: 4px 12px;
+  margin-left: 0.75rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: 'Inter', sans-serif;
+  transition: background 0.2s;
+  touch-action: manipulation;
+}
+.relogin-btn:hover { background: rgba(224, 92, 92, 0.15); }
+
+/* ─── BURN SOURCE MODAL ──────────────────────────────────────────────────── */
+.burn-source-card {
+  text-align: center;
+  align-items: center;
+  max-width: 440px;
+  gap: 1.25rem;
+  padding: 2.5rem 2rem;
+}
+
+.burn-source-icon {
+  font-size: 2.8rem;
+  line-height: 1;
+  /* subtle flicker to convey danger */
+  animation: flicker 2.5s ease-in-out infinite alternate;
+}
+@keyframes flicker {
+  0%   { filter: brightness(1) drop-shadow(0 0 6px rgba(255,80,0,0.6)); }
+  60%  { filter: brightness(1.2) drop-shadow(0 0 14px rgba(255,120,0,0.9)); }
+  100% { filter: brightness(0.9) drop-shadow(0 0 4px rgba(255,40,0,0.4)); }
+}
+
+.burn-source-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.burn-source-body {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin: 0;
+  max-width: 320px;
+}
+
+.burn-source-name {
+  color: var(--text-main);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.burn-source-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.burn-source-confirm-btn {
+  background: rgba(224, 92, 92, 0.12);
+  border: 1px solid rgba(224, 92, 92, 0.5);
+  border-radius: 4px;
+  color: #e05c5c;
+  padding: 10px 22px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  min-height: 44px;
+  touch-action: manipulation;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.burn-source-confirm-btn:hover {
+  background: rgba(224, 92, 92, 0.25);
+  box-shadow: 0 0 16px rgba(224, 92, 92, 0.25);
+  transform: translateY(-1px);
+}
+.burn-source-confirm-btn:active { transform: translateY(0); }
+
+/* ─── TITLE BURN BUTTON ──────────────────────────────────────────────────── */
+.title-burn-btn {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.2s, transform 0.2s;
+  padding: 4px;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  line-height: 1;
+}
+.header-title-row h1:hover .title-burn-btn { opacity: 0.8; }
+.title-burn-btn:hover { opacity: 1 !important; transform: scale(1.15); }
+
+/* On touch devices always show the burn button */
+@media (hover: none) { .title-burn-btn { opacity: 0.6; } }
+
+/* ─── GUEST BANNER ───────────────────────────────────────────────────────── */
+.guest-banner {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(22, 18, 14, 0.96);
+  border-bottom: 1px solid rgba(255, 107, 53, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1.5rem;
+  z-index: 10001;
+  backdrop-filter: blur(12px);
+}
+
+.guest-banner-text {
+  font-size: 0.82rem;
+  color: #8b949e;
+  font-family: 'Inter', sans-serif;
+}
+.guest-banner-text strong { color: #e05c5c; }
+
+.guest-sign-in-btn {
+  background: rgba(255, 107, 53, 0.1);
+  border: 1px solid rgba(255, 107, 53, 0.35);
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 5px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, box-shadow 0.2s;
+  min-height: 32px;
+  touch-action: manipulation;
+}
+.guest-sign-in-btn:hover {
+  background: rgba(255, 107, 53, 0.2);
+  box-shadow: 0 0 10px rgba(255, 107, 53, 0.2);
+}
+
+/* Push dashboard content below the guest banner */
+.dashboard-container:has(~ .guest-banner),
+body:has(.guest-banner) .dashboard-container {
+  padding-top: 7.5rem;
+}
+
+/* ─── NUKE VAULT BUTTON ──────────────────────────────────────────────────── */
+.nuke-vault-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: none;
+  border: 1px solid rgba(224, 92, 92, 0.2);
+  border-radius: 4px;
+  color: rgba(224, 92, 92, 0.5);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 0.5rem 0.9rem;
+  cursor: pointer;
+  min-height: 38px;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  touch-action: manipulation;
+}
+.nuke-vault-btn:hover {
+  border-color: rgba(224, 92, 92, 0.6);
+  color: #e05c5c;
+  background: rgba(224, 92, 92, 0.07);
+}
+.nuke-vault-btn svg { flex-shrink: 0; }
+
+/* ─── NUKE CONFIRM INPUT ─────────────────────────────────────────────────── */
+.nuke-confirm-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0;
+  width: 100%;
+  text-align: center;
+}
+.nuke-confirm-label strong { color: #e05c5c; letter-spacing: 1px; }
+
+.nuke-confirm-input {
+  width: 100%;
+  background: rgba(224, 92, 92, 0.07);
+  border: 1px solid rgba(224, 92, 92, 0.3);
+  border-radius: 4px;
+  color: #e05c5c;
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-align: center;
+  padding: 0.75rem 1rem;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  caret-color: #e05c5c;
+}
+.nuke-confirm-input::placeholder { color: rgba(224, 92, 92, 0.25); letter-spacing: 2px; }
+.nuke-confirm-input:focus { border-color: rgba(224, 92, 92, 0.6); box-shadow: 0 0 12px rgba(224, 92, 92, 0.15); }
+
+/* Disabled nuke confirm button */
+.burn-source-confirm-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
